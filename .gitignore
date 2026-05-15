@@ -61,6 +61,14 @@ local_settings.py
 db.sqlite3
 db.sqlite3-journal
 
+# App database
+files.db
+files.db-wal
+files.db-shm
+
+# Docker DB secrets
+db/
+
 # Flask stuff:
 instance/
 .webassets-cache

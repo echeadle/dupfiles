@@ -1,27 +1,189 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Duplicate File Finder</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #f5f5f5; color: #222; padding: 2rem; }
+    h1 { margin-bottom: 1.5rem; font-size: 1.5rem; }
+
+    .card { background: white; border-radius: 8px; padding: 1.5rem; margin-bottom: 1.5rem; box-shadow: 0 1px 4px rgba(0,0,0,.1); }
+
+    .row { display: flex; gap: .75rem; align-items: center; }
+    input[type=text] { flex: 1; padding: .6rem .8rem; border: 1px solid #ccc; border-radius: 6px; font-size: 1rem; }
+    button { padding: .6rem 1.2rem; border: none; border-radius: 6px; cursor: pointer; font-size: 1rem; }
+    #scanBtn  { background: #2563eb; color: white; }
+    #scanBtn:disabled { background: #93c5fd; cursor: not-allowed; }
+    #clearBtn { background: #dc2626; color: white; }
+
+    #status { margin-top: 1rem; font-size: .9rem; color: #555; min-height: 1.4rem; }
+    #status.error { color: #dc2626; }
+
+    .progress-bar-wrap { background: #e5e7eb; border-radius: 4px; height: 8px; margin-top: .5rem; display: none; }
+    .progress-bar { background: #2563eb; height: 8px; border-radius: 4px; width: 0%; transition: width .3s; }
+
+    table { width: 100%; border-collapse: collapse; font-size: .875rem; }
+    th { background: #f9fafb; text-align: left; padding: .5rem .75rem; border-bottom: 2px solid #e5e7eb; }
+    td { padding: .45rem .75rem; border-bottom: 1px solid #f0f0f0; word-break: break-all; }
+    tr:hover td { background: #fafafa; }
+
+    .group-header { background: #eff6ff; font-weight: 600; color: #1d4ed8; }
+    .group-header td { padding: .6rem .75rem; }
+    .badge { display: inline-block; padding: .2rem .5rem; border-radius: 4px; font-size: .75rem; }
+    .badge-red { background: #fee2e2; color: #b91c1c; }
+
+    #summary { font-size: .9rem; color: #555; margin-bottom: .75rem; }
+    #noResults { display: none; color: #555; padding: .5rem 0; }
+  </style>
 </head>
 <body>
   <h1>Duplicate File Finder</h1>
-  <form id="scanForm">
-    <input type="text" id="directory" placeholder="Enter directory to scan" />
-    <button type="submit">Scan</button>
-  </form>
-  <pre id="output"></pre>
+
+  <div class="card">
+    <div class="row">
+      <input type="text" id="dirInput" placeholder="Enter full directory path to scan" />
+      <button id="scanBtn" onclick="startScan()">Scan</button>
+      <button id="clearBtn" onclick="clearResults()">Clear</button>
+    </div>
+    <div id="status"></div>
+    <div class="progress-bar-wrap" id="progressWrap">
+      <div class="progress-bar" id="progressBar"></div>
+    </div>
+  </div>
+
+  <div class="card" id="resultsCard" style="display:none">
+    <div id="summary"></div>
+    <p id="noResults">No duplicate files found.</p>
+    <table id="resultsTable" style="display:none">
+      <thead>
+        <tr>
+          <th>Path</th>
+          <th>Size</th>
+          <th>Modified</th>
+        </tr>
+      </thead>
+      <tbody id="resultsBody"></tbody>
+    </table>
+  </div>
+
   <script>
-    document.getElementById('scanForm').onsubmit = async (e) => {
-      e.preventDefault();
-      const dir = document.getElementById('directory').value;
+    let pollTimer = null;
+
+    function fmt_size(bytes) {
+      if (bytes >= 1073741824) return (bytes / 1073741824).toFixed(2) + ' GB';
+      if (bytes >= 1048576)    return (bytes / 1048576).toFixed(2) + ' MB';
+      if (bytes >= 1024)       return (bytes / 1024).toFixed(1) + ' KB';
+      return bytes + ' B';
+    }
+
+    function fmt_date(ts) {
+      return new Date(ts * 1000).toLocaleString();
+    }
+
+    function setStatus(msg, isError = false) {
+      const el = document.getElementById('status');
+      el.textContent = msg;
+      el.className = isError ? 'error' : '';
+    }
+
+    async function startScan() {
+      const dir = document.getElementById('dirInput').value.trim();
+      if (!dir) { setStatus('Please enter a directory path.', true); return; }
+
+      document.getElementById('scanBtn').disabled = true;
+      document.getElementById('resultsCard').style.display = 'none';
+      document.getElementById('progressWrap').style.display = 'block';
+      setStatus('Starting scan…');
+
       const res = await fetch('/scan', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({path: dir})
       });
       const data = await res.json();
-      document.getElementById('output').textContent = JSON.stringify(data, null, 2);
-    };
+
+      if (data.status === 'error') {
+        setStatus(data.message, true);
+        document.getElementById('scanBtn').disabled = false;
+        document.getElementById('progressWrap').style.display = 'none';
+        return;
+      }
+
+      if (data.status === 'already_running') {
+        setStatus('A scan is already running. Polling for status…');
+      }
+
+      pollTimer = setInterval(pollStatus, 1500);
+    }
+
+    async function pollStatus() {
+      const res = await fetch('/scan/status');
+      const s = await res.json();
+
+      const processed = (s.processed || 0) + (s.skipped || 0);
+      setStatus(`Scanning… ${s.processed || 0} hashed, ${s.skipped || 0} cached`);
+
+      if (s.done) {
+        clearInterval(pollTimer);
+        document.getElementById('progressBar').style.width = '100%';
+        setStatus(`Done — ${s.processed} files hashed, ${s.skipped} from cache` +
+          (s.errors && s.errors.length ? ` (${s.errors.length} errors)` : ''));
+        document.getElementById('scanBtn').disabled = false;
+        await showDuplicates();
+      }
+    }
+
+    async function showDuplicates() {
+      const res = await fetch('/duplicates');
+      const data = await res.json();
+
+      document.getElementById('resultsCard').style.display = 'block';
+      const tbody = document.getElementById('resultsBody');
+      tbody.innerHTML = '';
+
+      if (data.total_groups === 0) {
+        document.getElementById('noResults').style.display = 'block';
+        document.getElementById('resultsTable').style.display = 'none';
+        document.getElementById('summary').textContent = 'No duplicates found.';
+        return;
+      }
+
+      document.getElementById('noResults').style.display = 'none';
+      document.getElementById('resultsTable').style.display = 'table';
+
+      const totalWasted = data.duplicate_groups.reduce((acc, g) => acc + g.total_size - (g.files[0]?.size || 0), 0);
+      document.getElementById('summary').textContent =
+        `${data.total_groups} duplicate group(s) — ~${fmt_size(totalWasted)} potentially recoverable`;
+
+      for (const group of data.duplicate_groups) {
+        const headerRow = document.createElement('tr');
+        headerRow.className = 'group-header';
+        headerRow.innerHTML = `<td colspan="3">
+          Hash: ${group.hash.substring(0, 16)}…
+          <span class="badge badge-red">${group.count} copies · ${fmt_size(group.files[0]?.size || 0)} each</span>
+        </td>`;
+        tbody.appendChild(headerRow);
+
+        for (const file of group.files) {
+          const row = document.createElement('tr');
+          row.innerHTML = `
+            <td>${file.path}</td>
+            <td>${fmt_size(file.size)}</td>
+            <td>${fmt_date(file.mtime)}</td>
+          `;
+          tbody.appendChild(row);
+        }
+      }
+    }
+
+    async function clearResults() {
+      document.getElementById('resultsCard').style.display = 'none';
+      document.getElementById('progressWrap').style.display = 'none';
+      document.getElementById('progressBar').style.width = '0%';
+      setStatus('');
+    }
   </script>
 </body>
 </html>

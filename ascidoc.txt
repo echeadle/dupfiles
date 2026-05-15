@@ -1,0 +1,87 @@
+== Implementation
+
+The MVP will be built in modular stages using Python and FastAPI, with a minimal static frontend. The implementation is structured to allow incremental testing and extension.
+
+=== Step 1: Project Setup
+- Initialize Python project with virtual environment
+- Install dependencies: `fastapi`, `uvicorn`, `sqlite3` (built-in), `jinja2` (if using templates for frontend)
+- Scaffold basic project layout: `app/`, `core/`, `models/`, `api/`, `static/`, `tests/`
+
+=== Step 2: Database Layer
+- Create SQLite3 schema with table:
+  ```sql
+  CREATE TABLE files (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    path TEXT NOT NULL UNIQUE,
+    hash TEXT NOT NULL,
+    size INTEGER,
+    mtime REAL
+  );
+
+
+== Milestones
+
+=== Milestone 1: Environment and Project Bootstrapping
+- [ ] Set up virtual environment and install dependencies
+- [ ] Scaffold base project layout
+- [ ] Create SQLite schema and connection helpers
+
+=== Milestone 2: Core File Scanning and Hashing
+- [ ] Implement file walking and hashing logic
+- [ ] Store/update records in database
+- [ ] Skip unchanged files using size + mtime
+
+=== Milestone 3: FastAPI Backend
+- [ ] Create `/scan` endpoint to trigger scanner
+- [ ] Create `/files` and `/duplicates` endpoints
+- [ ] Add error handling and logging
+
+=== Milestone 4: Simple Frontend UI
+- [ ] Build basic HTML+JS interface to trigger scans and display duplicates
+- [ ] Connect frontend to backend via API
+- [ ] Serve static files using FastAPI
+
+=== Milestone 5: Testing and Documentation
+- [ ] Write unit and integration tests
+- [ ] Add README and usage guide
+- [ ] Validate app with manual testing on sample directory
+
+=== Milestone 6: MVP Completion
+- [ ] Tag v1.0 release
+- [ ] Prepare for feature requests and future roadmap
+
+
+== Gathering Results
+
+To evaluate the success and correctness of the duplicate file finder MVP, the following criteria and validation steps will be used:
+
+=== Functional Validation
+- Verify that files with identical content are grouped as duplicates, regardless of filename or location
+- Confirm that files with different content are not marked as duplicates
+- Ensure symbolic links are ignored
+- Confirm that unchanged files are not re-hashed across multiple scans
+
+=== API Testing
+- Test POST `/scan` with valid and invalid paths
+- Test GET `/files` returns accurate file metadata
+- Test GET `/duplicates` correctly groups and lists duplicate files
+
+=== Frontend Testing
+- Confirm that triggering a scan via the UI works as expected
+- Ensure duplicate groups are rendered correctly in the browser
+- Check responsiveness and error reporting
+
+=== Performance Testing (Lightweight)
+- Scan sample directories with 100–10,000+ files
+- Time the scanning and hashing steps
+- Observe memory/CPU usage
+
+=== Success Criteria
+- User can scan a directory and reliably identify duplicate files via the frontend or API
+- No crashes or data corruption with reasonably sized directories
+- System can be extended easily with CLI tools, deletion features, or improved UI in future releases
+
+=== Must Have
+...
+- Must allow specifying excluded directories via a configuration file
+
