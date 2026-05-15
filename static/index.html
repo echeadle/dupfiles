@@ -6,46 +6,70 @@
   <title>Duplicate File Finder</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: system-ui, sans-serif; background: #f5f5f5; color: #222; padding: 2rem; }
+    body { font-family: system-ui, sans-serif; background: #f5f5f5; color: #222; padding: 2rem; max-width: 1100px; margin: 0 auto; }
     h1 { margin-bottom: 1.5rem; font-size: 1.5rem; }
 
     .card { background: white; border-radius: 8px; padding: 1.5rem; margin-bottom: 1.5rem; box-shadow: 0 1px 4px rgba(0,0,0,.1); }
 
-    .row { display: flex; gap: .75rem; align-items: center; }
-    input[type=text] { flex: 1; padding: .6rem .8rem; border: 1px solid #ccc; border-radius: 6px; font-size: 1rem; }
-    button { padding: .6rem 1.2rem; border: none; border-radius: 6px; cursor: pointer; font-size: 1rem; }
-    #scanBtn  { background: #2563eb; color: white; }
-    #scanBtn:disabled { background: #93c5fd; cursor: not-allowed; }
-    #clearBtn { background: #dc2626; color: white; }
+    .row { display: flex; gap: .75rem; align-items: center; flex-wrap: wrap; }
+    input[type=text] { flex: 1; min-width: 200px; padding: .6rem .8rem; border: 1px solid #ccc; border-radius: 6px; font-size: 1rem; }
+    button { padding: .6rem 1.2rem; border: none; border-radius: 6px; cursor: pointer; font-size: .9rem; white-space: nowrap; }
+    button:disabled { opacity: .5; cursor: not-allowed; }
 
-    #status { margin-top: 1rem; font-size: .9rem; color: #555; min-height: 1.4rem; }
+    .btn-blue   { background: #2563eb; color: white; }
+    .btn-red    { background: #dc2626; color: white; }
+    .btn-gray   { background: #6b7280; color: white; }
+    .btn-outline { background: white; color: #374151; border: 1px solid #d1d5db; }
+    .btn-sm     { padding: .3rem .7rem; font-size: .8rem; }
+
+    #status { margin-top: .75rem; font-size: .9rem; color: #555; min-height: 1.4rem; }
     #status.error { color: #dc2626; }
-
     .progress-bar-wrap { background: #e5e7eb; border-radius: 4px; height: 8px; margin-top: .5rem; display: none; }
     .progress-bar { background: #2563eb; height: 8px; border-radius: 4px; width: 0%; transition: width .3s; }
 
-    table { width: 100%; border-collapse: collapse; font-size: .875rem; }
-    th { background: #f9fafb; text-align: left; padding: .5rem .75rem; border-bottom: 2px solid #e5e7eb; }
-    td { padding: .45rem .75rem; border-bottom: 1px solid #f0f0f0; word-break: break-all; }
-    tr:hover td { background: #fafafa; }
+    /* Config panel */
+    details summary { cursor: pointer; font-weight: 600; font-size: .95rem; color: #374151; user-select: none; }
+    details summary::-webkit-details-marker { color: #9ca3af; }
+    .config-body { margin-top: 1rem; display: flex; flex-direction: column; gap: 1rem; }
+    .config-group label { display: block; font-size: .8rem; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: #6b7280; margin-bottom: .4rem; }
+    .tags { display: flex; flex-wrap: wrap; gap: .4rem; margin-bottom: .5rem; }
+    .tag { display: inline-flex; align-items: center; gap: .3rem; background: #eff6ff; color: #1d4ed8; border-radius: 4px; padding: .2rem .5rem; font-size: .8rem; }
+    .tag-remove { background: none; border: none; cursor: pointer; color: #93c5fd; padding: 0; font-size: .85rem; line-height: 1; }
+    .tag-remove:hover { color: #1d4ed8; }
+    .add-row { display: flex; gap: .5rem; }
+    .add-row input { flex: 1; padding: .4rem .6rem; font-size: .85rem; }
+    .add-row button { padding: .4rem .8rem; font-size: .85rem; }
 
-    .group-header { background: #eff6ff; font-weight: 600; color: #1d4ed8; }
-    .group-header td { padding: .6rem .75rem; }
-    .badge { display: inline-block; padding: .2rem .5rem; border-radius: 4px; font-size: .75rem; }
-    .badge-red { background: #fee2e2; color: #b91c1c; }
+    /* Delete bar */
+    #deleteBar { display: none; align-items: center; gap: 1rem; margin-bottom: 1rem; padding: .75rem 1rem; background: #fff7ed; border: 1px solid #fed7aa; border-radius: 6px; }
+    #deleteBar span { font-size: .9rem; color: #92400e; }
 
+    /* Results table */
     #summary { font-size: .9rem; color: #555; margin-bottom: .75rem; }
     #noResults { display: none; color: #555; padding: .5rem 0; }
+    table { width: 100%; border-collapse: collapse; font-size: .875rem; }
+    th { background: #f9fafb; text-align: left; padding: .5rem .75rem; border-bottom: 2px solid #e5e7eb; }
+    td { padding: .45rem .75rem; border-bottom: 1px solid #f0f0f0; word-break: break-all; vertical-align: middle; }
+    tr:hover td { background: #fafafa; }
+
+    .group-header td { background: #eff6ff; padding: .6rem .75rem; }
+    .group-meta { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
+    .group-hash { font-weight: 600; color: #1d4ed8; font-size: .85rem; }
+    .badge { display: inline-block; padding: .2rem .5rem; border-radius: 4px; font-size: .75rem; background: #fee2e2; color: #b91c1c; }
+
+    input[type=checkbox] { width: 15px; height: 15px; cursor: pointer; accent-color: #2563eb; }
+    .cb-col { width: 36px; text-align: center; }
   </style>
 </head>
 <body>
   <h1>Duplicate File Finder</h1>
 
+  <!-- Scan card -->
   <div class="card">
     <div class="row">
       <input type="text" id="dirInput" placeholder="Enter full directory path to scan" />
-      <button id="scanBtn" onclick="startScan()">Scan</button>
-      <button id="clearBtn" onclick="clearResults()">Clear</button>
+      <button class="btn-blue" id="scanBtn" onclick="startScan()">Scan</button>
+      <button class="btn-gray" onclick="clearResults()">Clear</button>
     </div>
     <div id="status"></div>
     <div class="progress-bar-wrap" id="progressWrap">
@@ -53,12 +77,45 @@
     </div>
   </div>
 
+  <!-- Config card -->
+  <div class="card">
+    <details>
+      <summary>Configuration</summary>
+      <div class="config-body">
+        <div class="config-group">
+          <label>Excluded Directories</label>
+          <div class="tags" id="dirTags"></div>
+          <div class="add-row">
+            <input type="text" id="newDir" placeholder="e.g. .cache" onkeydown="if(event.key==='Enter') addDir()" />
+            <button class="btn-outline btn-sm" onclick="addDir()">+ Add</button>
+          </div>
+        </div>
+        <div class="config-group">
+          <label>Excluded File Patterns</label>
+          <div class="tags" id="patternTags"></div>
+          <div class="add-row">
+            <input type="text" id="newPattern" placeholder="e.g. *.log" onkeydown="if(event.key==='Enter') addPattern()" />
+            <button class="btn-outline btn-sm" onclick="addPattern()">+ Add</button>
+          </div>
+        </div>
+      </div>
+    </details>
+  </div>
+
+  <!-- Results card -->
   <div class="card" id="resultsCard" style="display:none">
     <div id="summary"></div>
+
+    <div id="deleteBar">
+      <span id="deleteCount"></span>
+      <button class="btn-red btn-sm" onclick="deleteSelected()">Move to Trash</button>
+    </div>
+
     <p id="noResults">No duplicate files found.</p>
     <table id="resultsTable" style="display:none">
       <thead>
         <tr>
+          <th class="cb-col"></th>
           <th>Path</th>
           <th>Size</th>
           <th>Modified</th>
@@ -70,15 +127,18 @@
 
   <script>
     let pollTimer = null;
+    let currentConfig = { exclude_dirs: [], exclude_patterns: [] };
 
-    function fmt_size(bytes) {
+    // ---- Formatting helpers ----
+
+    function fmtSize(bytes) {
       if (bytes >= 1073741824) return (bytes / 1073741824).toFixed(2) + ' GB';
       if (bytes >= 1048576)    return (bytes / 1048576).toFixed(2) + ' MB';
       if (bytes >= 1024)       return (bytes / 1024).toFixed(1) + ' KB';
       return bytes + ' B';
     }
 
-    function fmt_date(ts) {
+    function fmtDate(ts) {
       return new Date(ts * 1000).toLocaleString();
     }
 
@@ -88,6 +148,68 @@
       el.className = isError ? 'error' : '';
     }
 
+    // ---- Config ----
+
+    async function loadConfig() {
+      const r = await fetch('/config');
+      currentConfig = await r.json();
+      renderConfig();
+    }
+
+    function renderConfig() {
+      renderTags('dirTags',     currentConfig.exclude_dirs,     removeDir);
+      renderTags('patternTags', currentConfig.exclude_patterns, removePattern);
+    }
+
+    function renderTags(containerId, items, removeFn) {
+      const el = document.getElementById(containerId);
+      el.innerHTML = '';
+      for (const item of items) {
+        const tag = document.createElement('span');
+        tag.className = 'tag';
+        tag.innerHTML = `${item} <button class="tag-remove" title="Remove">×</button>`;
+        tag.querySelector('button').onclick = () => removeFn(item);
+        el.appendChild(tag);
+      }
+    }
+
+    async function saveConfig() {
+      await fetch('/config', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(currentConfig),
+      });
+      renderConfig();
+    }
+
+    async function addDir() {
+      const val = document.getElementById('newDir').value.trim();
+      if (!val || currentConfig.exclude_dirs.includes(val)) return;
+      currentConfig.exclude_dirs.push(val);
+      document.getElementById('newDir').value = '';
+      await saveConfig();
+    }
+
+    async function removeDir(dir) {
+      currentConfig.exclude_dirs = currentConfig.exclude_dirs.filter(d => d !== dir);
+      await saveConfig();
+    }
+
+    async function addPattern() {
+      const val = document.getElementById('newPattern').value.trim();
+      if (!val || currentConfig.exclude_patterns.includes(val)) return;
+      currentConfig.exclude_patterns.push(val);
+      document.getElementById('newPattern').value = '';
+      await saveConfig();
+    }
+
+    async function removePattern(p) {
+      currentConfig.exclude_patterns = currentConfig.exclude_patterns.filter(x => x !== p);
+      await saveConfig();
+    }
+
+    // ---- Scan ----
+
     async function startScan() {
       const dir = document.getElementById('dirInput').value.trim();
       if (!dir) { setStatus('Please enter a directory path.', true); return; }
@@ -95,12 +217,13 @@
       document.getElementById('scanBtn').disabled = true;
       document.getElementById('resultsCard').style.display = 'none';
       document.getElementById('progressWrap').style.display = 'block';
+      document.getElementById('progressBar').style.width = '0%';
       setStatus('Starting scan…');
 
       const res = await fetch('/scan', {
         method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({path: dir})
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: dir }),
       });
       const data = await res.json();
 
@@ -111,37 +234,30 @@
         return;
       }
 
-      if (data.status === 'already_running') {
-        setStatus('A scan is already running. Polling for status…');
-      }
-
       pollTimer = setInterval(pollStatus, 1500);
     }
 
     async function pollStatus() {
-      const res = await fetch('/scan/status');
-      const s = await res.json();
-
-      const processed = (s.processed || 0) + (s.skipped || 0);
+      const s = await (await fetch('/scan/status')).json();
       setStatus(`Scanning… ${s.processed || 0} hashed, ${s.skipped || 0} cached`);
-
       if (s.done) {
         clearInterval(pollTimer);
         document.getElementById('progressBar').style.width = '100%';
         setStatus(`Done — ${s.processed} files hashed, ${s.skipped} from cache` +
-          (s.errors && s.errors.length ? ` (${s.errors.length} errors)` : ''));
+          (s.errors?.length ? ` (${s.errors.length} errors)` : ''));
         document.getElementById('scanBtn').disabled = false;
         await showDuplicates();
       }
     }
 
-    async function showDuplicates() {
-      const res = await fetch('/duplicates');
-      const data = await res.json();
+    // ---- Results ----
 
+    async function showDuplicates() {
+      const data = await (await fetch('/duplicates')).json();
       document.getElementById('resultsCard').style.display = 'block';
       const tbody = document.getElementById('resultsBody');
       tbody.innerHTML = '';
+      updateDeleteBar();
 
       if (data.total_groups === 0) {
         document.getElementById('noResults').style.display = 'block';
@@ -153,37 +269,111 @@
       document.getElementById('noResults').style.display = 'none';
       document.getElementById('resultsTable').style.display = 'table';
 
-      const totalWasted = data.duplicate_groups.reduce((acc, g) => acc + g.total_size - (g.files[0]?.size || 0), 0);
+      const totalWasted = data.duplicate_groups.reduce(
+        (acc, g) => acc + g.total_size - (g.files[0]?.size || 0), 0
+      );
       document.getElementById('summary').textContent =
-        `${data.total_groups} duplicate group(s) — ~${fmt_size(totalWasted)} potentially recoverable`;
+        `${data.total_groups} duplicate group(s) — ~${fmtSize(totalWasted)} potentially recoverable`;
 
       for (const group of data.duplicate_groups) {
-        const headerRow = document.createElement('tr');
-        headerRow.className = 'group-header';
-        headerRow.innerHTML = `<td colspan="3">
-          Hash: ${group.hash.substring(0, 16)}…
-          <span class="badge badge-red">${group.count} copies · ${fmt_size(group.files[0]?.size || 0)} each</span>
+        // Group header row
+        const hdr = document.createElement('tr');
+        hdr.className = 'group-header';
+        hdr.innerHTML = `<td></td><td colspan="3">
+          <div class="group-meta">
+            <span class="group-hash">Hash: ${group.hash.substring(0, 16)}…</span>
+            <span class="badge">${group.count} copies · ${fmtSize(group.files[0]?.size || 0)} each</span>
+            <button class="btn-outline btn-sm" onclick="keepNewest('${group.hash}')">Keep newest</button>
+            <button class="btn-outline btn-sm" onclick="keepShortest('${group.hash}')">Keep shortest path</button>
+          </div>
         </td>`;
-        tbody.appendChild(headerRow);
+        tbody.appendChild(hdr);
 
+        // File rows
         for (const file of group.files) {
           const row = document.createElement('tr');
+          row.dataset.group = group.hash;
+          row.dataset.path  = file.path;
+          row.dataset.mtime = file.mtime;
           row.innerHTML = `
+            <td class="cb-col"><input type="checkbox" onchange="updateDeleteBar()" /></td>
             <td>${file.path}</td>
-            <td>${fmt_size(file.size)}</td>
-            <td>${fmt_date(file.mtime)}</td>
+            <td>${fmtSize(file.size)}</td>
+            <td>${fmtDate(file.mtime)}</td>
           `;
           tbody.appendChild(row);
         }
       }
     }
 
-    async function clearResults() {
+    // ---- Selection helpers ----
+
+    function rowsForGroup(hash) {
+      return [...document.querySelectorAll(`tr[data-group="${hash}"]`)];
+    }
+
+    function keepNewest(hash) {
+      const rows = rowsForGroup(hash);
+      const newest = rows.reduce((a, b) => parseFloat(a.dataset.mtime) > parseFloat(b.dataset.mtime) ? a : b);
+      rows.forEach(r => r.querySelector('input').checked = r !== newest);
+      updateDeleteBar();
+    }
+
+    function keepShortest(hash) {
+      const rows = rowsForGroup(hash);
+      const shortest = rows.reduce((a, b) => a.dataset.path.length <= b.dataset.path.length ? a : b);
+      rows.forEach(r => r.querySelector('input').checked = r !== shortest);
+      updateDeleteBar();
+    }
+
+    function updateDeleteBar() {
+      const checked = [...document.querySelectorAll('#resultsBody input[type=checkbox]:checked')];
+      const bar = document.getElementById('deleteBar');
+      if (checked.length === 0) {
+        bar.style.display = 'none';
+      } else {
+        bar.style.display = 'flex';
+        document.getElementById('deleteCount').textContent = `${checked.length} file${checked.length > 1 ? 's' : ''} selected`;
+      }
+    }
+
+    // ---- Delete ----
+
+    async function deleteSelected() {
+      const checked = [...document.querySelectorAll('#resultsBody input[type=checkbox]:checked')];
+      const paths = checked.map(cb => cb.closest('tr').dataset.path);
+      if (paths.length === 0) return;
+
+      const msg = `Move ${paths.length} file${paths.length > 1 ? 's' : ''} to trash?\n\n` + paths.join('\n');
+      if (!confirm(msg)) return;
+
+      const res = await fetch('/files/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paths }),
+      });
+      const data = await res.json();
+
+      const trashed = data.trashed?.length || 0;
+      const failed  = data.failed?.length  || 0;
+      let msg2 = `${trashed} file${trashed !== 1 ? 's' : ''} moved to trash.`;
+      if (failed > 0) msg2 += ` ${failed} failed.`;
+      setStatus(msg2);
+
+      await showDuplicates();
+    }
+
+    // ---- Clear ----
+
+    function clearResults() {
       document.getElementById('resultsCard').style.display = 'none';
       document.getElementById('progressWrap').style.display = 'none';
       document.getElementById('progressBar').style.width = '0%';
       setStatus('');
     }
+
+    // ---- Init ----
+    loadConfig();
   </script>
 </body>
 </html>

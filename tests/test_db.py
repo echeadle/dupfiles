@@ -1,4 +1,4 @@
-from app.core.db import upsert_file, get_file, get_all_files, get_duplicates
+from app.core.db import upsert_file, get_file, get_all_files, get_duplicates, delete_file
 
 
 def test_upsert_inserts_new_record(db_conn):
@@ -51,3 +51,16 @@ def test_get_duplicates_empty_when_no_dupes(db_conn):
     upsert_file(db_conn, "/tmp/a.txt", "h1", 10, 1.0)
     db_conn.commit()
     assert get_duplicates(db_conn) == []
+
+
+def test_delete_file_removes_record(db_conn):
+    upsert_file(db_conn, "/tmp/a.txt", "h1", 10, 1.0)
+    db_conn.commit()
+    result = delete_file(db_conn, "/tmp/a.txt")
+    db_conn.commit()
+    assert result is True
+    assert get_file(db_conn, "/tmp/a.txt") is None
+
+
+def test_delete_file_returns_false_for_missing(db_conn):
+    assert delete_file(db_conn, "/no/such/file.txt") is False

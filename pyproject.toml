@@ -7,6 +7,7 @@ dependencies = [
     "fastapi==0.115.6",
     "uvicorn[standard]==0.34.0",
     "aiofiles==24.1.0",
+    "send2trash>=2.1.0",
 ]
 
 [dependency-groups]

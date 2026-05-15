@@ -44,6 +44,12 @@ def get_all_files(conn: sqlite3.Connection) -> list[dict]:
     return [dict(r) for r in rows]
 
 
+def delete_file(conn: sqlite3.Connection, path: str) -> bool:
+    """Remove a file record from the DB. Returns True if a row was deleted."""
+    cursor = conn.execute("DELETE FROM files WHERE path = ?", (path,))
+    return cursor.rowcount > 0
+
+
 def get_duplicates(conn: sqlite3.Connection) -> list[dict]:
     rows = conn.execute("""
         SELECT * FROM files

@@ -1,3 +1,4 @@
+import json
 import pytest
 from fastapi.testclient import TestClient
 
@@ -14,6 +15,18 @@ def tmp_db(tmp_path_factory, monkeypatch):
 
 
 @pytest.fixture()
+def tmp_config(tmp_path_factory, monkeypatch):
+    """Patch CONFIG_PATH to a temp config.json with default-like content."""
+    cfg_dir = tmp_path_factory.mktemp("cfg")
+    cfg_path = str(cfg_dir / "config.json")
+    default = {"exclude_dirs": [".git"], "exclude_patterns": ["*.log"]}
+    with open(cfg_path, "w") as f:
+        json.dump(default, f)
+    monkeypatch.setattr(routes_module, "CONFIG_PATH", cfg_path)
+    return cfg_path
+
+
+@pytest.fixture()
 def db_conn(tmp_db):
     """Open an initialized in-temp-file connection."""
     conn = db_module.get_connection(tmp_db)
@@ -23,8 +36,8 @@ def db_conn(tmp_db):
 
 
 @pytest.fixture()
-def client(tmp_db):
-    """TestClient with patched DB and reset scan status."""
+def client(tmp_db, tmp_config):
+    """TestClient with patched DB, patched config, and reset scan status."""
     routes_module._scan_status.update(
         {"running": False, "done": False, "processed": 0, "skipped": 0, "errors": []}
     )
