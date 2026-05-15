@@ -14,12 +14,12 @@ router = APIRouter()
 _scan_status: dict = {"running": False, "done": False, "processed": 0, "skipped": 0, "errors": []}
 
 
-def _load_exclude_dirs() -> list[str]:
+def _load_config() -> dict:
     config_path = Path("config.json")
     if config_path.exists():
         with open(config_path) as f:
-            return json.load(f).get("exclude_dirs", [])
-    return []
+            return json.load(f)
+    return {}
 
 
 # --- UI ---
@@ -43,9 +43,11 @@ def start_scan(request: ScanRequest, background_tasks: BackgroundTasks):
     if not Path(request.path).is_dir():
         return {"status": "error", "message": f"Not a directory: {request.path}"}
 
-    exclude_dirs = _load_exclude_dirs()
-    background_tasks.add_task(scan_directory, request.path, exclude_dirs, _scan_status)
-    return {"status": "started", "path": request.path, "exclude_dirs": exclude_dirs}
+    config = _load_config()
+    exclude_dirs = config.get("exclude_dirs", [])
+    exclude_patterns = config.get("exclude_patterns", [])
+    background_tasks.add_task(scan_directory, request.path, exclude_dirs, exclude_patterns, _scan_status)
+    return {"status": "started", "path": request.path, "exclude_dirs": exclude_dirs, "exclude_patterns": exclude_patterns}
 
 
 @router.get("/scan/status")

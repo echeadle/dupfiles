@@ -1,3 +1,4 @@
+import fnmatch
 import hashlib
 import os
 
@@ -15,11 +16,22 @@ def hash_file(path: str, block_size: int = 65536) -> str | None:
         return None
 
 
-def scan_directory(directory_path: str, exclude_dirs: list[str], status: dict) -> None:
+def is_excluded_file(filename: str, patterns: list[str]) -> bool:
+    """Return True if filename matches any glob pattern (e.g. '*.log', '.DS_Store')."""
+    return any(fnmatch.fnmatch(filename, p) for p in patterns)
+
+
+def scan_directory(
+    directory_path: str,
+    exclude_dirs: list[str],
+    exclude_patterns: list[str],
+    status: dict,
+) -> None:
     """Walk directory_path, hash new/changed files, store in DB.
 
     Updates `status` dict in-place so the caller can poll progress.
-    Skips symlinks, zero-byte files, and dirs listed in exclude_dirs.
+    Skips symlinks, zero-byte files, dirs in exclude_dirs, and files
+    matching any glob in exclude_patterns.
     Re-hashes only when size or mtime has changed (cache hit = size+mtime match).
     """
     conn = get_connection()
@@ -39,6 +51,9 @@ def scan_directory(directory_path: str, exclude_dirs: list[str], status: dict) -
                 fpath = os.path.join(root, filename)
                 try:
                     if os.path.islink(fpath):
+                        continue
+
+                    if is_excluded_file(filename, exclude_patterns):
                         continue
 
                     stat = os.stat(fpath)

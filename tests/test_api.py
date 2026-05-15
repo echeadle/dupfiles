@@ -60,6 +60,14 @@ def test_duplicates_sorted_by_wasted_space(client, tmp_db):
     assert groups[1]["hash"] == "hash_small"
 
 
+def test_scan_response_includes_exclude_patterns(client, tmp_path):
+    r = client.post("/scan", json={"path": str(tmp_path)})
+    data = r.json()
+    assert data["status"] == "started"
+    assert "exclude_patterns" in data
+    assert isinstance(data["exclude_patterns"], list)
+
+
 def test_full_scan_finds_duplicates(client, tmp_path):
     content = b"identical content for dedup test"
     (tmp_path / "copy1.txt").write_bytes(content)

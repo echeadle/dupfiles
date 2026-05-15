@@ -1,8 +1,10 @@
 import hashlib
 
-from app.core.scanner import hash_file, scan_directory
-from app.core.db import get_connection, init_db, get_duplicates
+from app.core.scanner import hash_file, is_excluded_file, scan_directory
+from app.core.db import get_connection, get_duplicates
 
+
+# --- hash_file ---
 
 def test_hash_file_matches_known_sha256(tmp_path):
     f = tmp_path / "sample.txt"
@@ -23,6 +25,25 @@ def test_hash_file_missing_returns_none():
     assert hash_file("/no/such/file.txt") is None
 
 
+# --- is_excluded_file ---
+
+def test_is_excluded_file_matches_glob():
+    assert is_excluded_file("app.log", ["*.log"]) is True
+    assert is_excluded_file("Thumbs.db", ["Thumbs.db"]) is True
+    assert is_excluded_file("cache.tmp", ["*.tmp", "*.log"]) is True
+
+
+def test_is_excluded_file_no_match():
+    assert is_excluded_file("main.py", ["*.log", "*.tmp"]) is False
+    assert is_excluded_file("data.log.bak", ["*.log"]) is False
+
+
+def test_is_excluded_file_empty_patterns():
+    assert is_excluded_file("anything.txt", []) is False
+
+
+# --- scan_directory ---
+
 def test_scan_directory_finds_duplicates(tmp_path, tmp_db):
     content = b"duplicate file content"
     (tmp_path / "a.txt").write_bytes(content)
@@ -30,7 +51,7 @@ def test_scan_directory_finds_duplicates(tmp_path, tmp_db):
     (tmp_path / "unique.txt").write_bytes(b"something else entirely")
 
     status = {}
-    scan_directory(str(tmp_path), [], status)
+    scan_directory(str(tmp_path), [], [], status)
 
     assert status["done"] is True
     assert status["processed"] == 3
@@ -50,7 +71,7 @@ def test_scan_directory_skips_symlinks(tmp_path, tmp_db):
     link.symlink_to(real)
 
     status = {}
-    scan_directory(str(tmp_path), [], status)
+    scan_directory(str(tmp_path), [], [], status)
 
     assert status["processed"] == 1  # only the real file
 
@@ -59,12 +80,12 @@ def test_scan_directory_cache_hit_on_rescan(tmp_path, tmp_db):
     (tmp_path / "file.txt").write_bytes(b"some bytes")
 
     status = {}
-    scan_directory(str(tmp_path), [], status)
+    scan_directory(str(tmp_path), [], [], status)
     assert status["processed"] == 1
     assert status["skipped"] == 0
 
     status2 = {}
-    scan_directory(str(tmp_path), [], status2)
+    scan_directory(str(tmp_path), [], [], status2)
     assert status2["processed"] == 0
     assert status2["skipped"] == 1
 
@@ -76,6 +97,29 @@ def test_scan_directory_respects_exclude_dirs(tmp_path, tmp_db):
     (tmp_path / "main.py").write_bytes(b"python code")
 
     status = {}
-    scan_directory(str(tmp_path), ["node_modules"], status)
+    scan_directory(str(tmp_path), ["node_modules"], [], status)
 
     assert status["processed"] == 1  # only main.py
+
+
+def test_scan_directory_respects_exclude_patterns(tmp_path, tmp_db):
+    (tmp_path / "app.log").write_bytes(b"log data")
+    (tmp_path / "cache.tmp").write_bytes(b"temp data")
+    (tmp_path / "main.py").write_bytes(b"python code")
+
+    status = {}
+    scan_directory(str(tmp_path), [], ["*.log", "*.tmp"], status)
+
+    assert status["processed"] == 1  # only main.py
+
+
+def test_scan_directory_patterns_dont_affect_dirs(tmp_path, tmp_db):
+    logs_dir = tmp_path / "logs"
+    logs_dir.mkdir()
+    (logs_dir / "server.txt").write_bytes(b"inside logs dir")
+    (tmp_path / "main.py").write_bytes(b"python code")
+
+    status = {}
+    scan_directory(str(tmp_path), [], ["*.log"], status)
+
+    assert status["processed"] == 2  # patterns only match filenames, not dirs
