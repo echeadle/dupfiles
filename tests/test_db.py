@@ -1,4 +1,4 @@
-from app.core.db import upsert_file, get_file, get_all_files, get_duplicates, delete_file
+from app.core.db import upsert_file, get_file, get_all_files, get_duplicates, delete_file, clear_files
 
 
 def test_upsert_inserts_new_record(db_conn):
@@ -64,3 +64,16 @@ def test_delete_file_removes_record(db_conn):
 
 def test_delete_file_returns_false_for_missing(db_conn):
     assert delete_file(db_conn, "/no/such/file.txt") is False
+
+
+def test_clear_files_removes_all_records(db_conn):
+    upsert_file(db_conn, "/tmp/a.txt", "h1", 10, 1.0)
+    upsert_file(db_conn, "/tmp/b.txt", "h2", 20, 2.0)
+    db_conn.commit()
+    count = clear_files(db_conn)
+    assert count == 2
+    assert get_all_files(db_conn) == []
+
+
+def test_clear_files_on_empty_db_returns_zero(db_conn):
+    assert clear_files(db_conn) == 0

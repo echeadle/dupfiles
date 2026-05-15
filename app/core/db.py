@@ -44,6 +44,13 @@ def get_all_files(conn: sqlite3.Connection) -> list[dict]:
     return [dict(r) for r in rows]
 
 
+def clear_files(conn: sqlite3.Connection) -> int:
+    """Delete all records from the files table. Returns the count removed."""
+    cursor = conn.execute("DELETE FROM files")
+    conn.commit()
+    return cursor.rowcount
+
+
 def delete_file(conn: sqlite3.Connection, path: str) -> bool:
     """Remove a file record from the DB. Returns True if a row was deleted."""
     cursor = conn.execute("DELETE FROM files WHERE path = ?", (path,))

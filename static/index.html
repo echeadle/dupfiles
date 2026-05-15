@@ -89,6 +89,7 @@
       <button class="btn-outline" onclick="openBrowser()">Browse…</button>
       <button class="btn-blue" id="scanBtn" onclick="startScan()">Scan</button>
       <button class="btn-gray" onclick="clearResults()">Clear</button>
+      <button class="btn-outline" onclick="clearCache()" title="Remove all cached file hashes from the database">Clear Cache</button>
     </div>
     <div id="status"></div>
     <div class="progress-bar-wrap" id="progressWrap">
@@ -333,6 +334,10 @@
         return;
       }
 
+      if (data.purged > 0) {
+        setStatus(`Purged ${data.purged} excluded file(s) from cache. Scanning…`);
+      }
+
       pollTimer = setInterval(pollStatus, 1500);
     }
 
@@ -460,7 +465,16 @@
       await showDuplicates();
     }
 
-    // ---- Clear ----
+    // ---- Clear cache ----
+
+    async function clearCache() {
+      if (!confirm('Remove all cached file hashes from the database? The next scan will re-hash everything.')) return;
+      const r = await fetch('/cache/clear', { method: 'POST' });
+      const data = await r.json();
+      setStatus(`Cache cleared — ${data.cleared} record(s) removed.`);
+    }
+
+    // ---- Clear results ----
 
     function clearResults() {
       document.getElementById('resultsCard').style.display = 'none';

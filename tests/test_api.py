@@ -93,6 +93,48 @@ def test_full_scan_finds_duplicates(client, tmp_path):
     assert names == {"copy1.txt", "copy2.txt"}
 
 
+# --- Cache tests ---
+
+def test_clear_cache_endpoint(client, tmp_db):
+    conn = get_connection(tmp_db)
+    init_db(conn)
+    upsert_file(conn, "/tmp/a.txt", "h1", 10, 1.0)
+    upsert_file(conn, "/tmp/b.txt", "h2", 20, 2.0)
+    conn.commit()
+    conn.close()
+    r = client.post("/cache/clear")
+    assert r.status_code == 200
+    assert r.json()["cleared"] == 2
+    assert client.get("/files").json()["count"] == 0
+
+
+def test_scan_purges_excluded_entries_before_scanning(client, tmp_db, tmp_path):
+    # Put .venv in the exclude list
+    client.put("/config", json={"exclude_dirs": [".venv"], "exclude_patterns": []})
+
+    # Pre-populate DB with a file that lives under .venv
+    excluded_file = "/home/user/.venv/lib/site.py"
+    conn = get_connection(tmp_db)
+    init_db(conn)
+    upsert_file(conn, excluded_file, "oldhash", 100, 1.0)
+    conn.commit()
+    conn.close()
+
+    # Scan — pre-scan purge should remove the excluded entry
+    r = client.post("/scan", json={"path": str(tmp_path)})
+    assert r.json()["purged"] == 1
+
+    from app.core.db import get_file
+    conn2 = get_connection(tmp_db)
+    assert get_file(conn2, excluded_file) is None
+    conn2.close()
+
+
+def test_scan_response_includes_purged_count(client, tmp_path):
+    r = client.post("/scan", json={"path": str(tmp_path)})
+    assert "purged" in r.json()
+
+
 # --- Browser tests ---
 
 def test_browse_returns_subdirs(client, tmp_path):

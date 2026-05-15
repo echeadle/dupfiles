@@ -1,7 +1,7 @@
 import hashlib
 
-from app.core.scanner import hash_file, is_excluded_file, scan_directory
-from app.core.db import get_connection, get_duplicates
+from app.core.scanner import hash_file, is_excluded_file, purge_excluded, scan_directory
+from app.core.db import get_connection, get_duplicates, get_all_files, init_db, upsert_file
 
 
 # --- hash_file ---
@@ -111,6 +111,48 @@ def test_scan_directory_respects_exclude_patterns(tmp_path, tmp_db):
     scan_directory(str(tmp_path), [], ["*.log", "*.tmp"], status)
 
     assert status["processed"] == 1  # only main.py
+
+
+# --- purge_excluded ---
+
+def test_purge_excluded_removes_excluded_dir_entries(tmp_db):
+    conn = get_connection(tmp_db)
+    init_db(conn)
+    upsert_file(conn, "/home/user/.venv/lib/module.py", "h1", 10, 1.0)
+    upsert_file(conn, "/home/user/project/main.py",     "h2", 20, 2.0)
+    conn.commit()
+    removed = purge_excluded(conn, [".venv"], [])
+    assert removed == 1
+    paths = [r["path"] for r in get_all_files(conn)]
+    assert "/home/user/project/main.py" in paths
+    assert "/home/user/.venv/lib/module.py" not in paths
+    conn.close()
+
+
+def test_purge_excluded_removes_pattern_matches(tmp_db):
+    conn = get_connection(tmp_db)
+    init_db(conn)
+    upsert_file(conn, "/tmp/app.log",  "h1", 10, 1.0)
+    upsert_file(conn, "/tmp/main.py",  "h2", 20, 2.0)
+    conn.commit()
+    removed = purge_excluded(conn, [], ["*.log"])
+    assert removed == 1
+    paths = [r["path"] for r in get_all_files(conn)]
+    assert "/tmp/main.py" in paths
+    assert "/tmp/app.log" not in paths
+    conn.close()
+
+
+def test_purge_excluded_keeps_non_excluded(tmp_db):
+    conn = get_connection(tmp_db)
+    init_db(conn)
+    upsert_file(conn, "/tmp/a.py", "h1", 10, 1.0)
+    upsert_file(conn, "/tmp/b.py", "h2", 20, 2.0)
+    conn.commit()
+    removed = purge_excluded(conn, [".venv"], ["*.log"])
+    assert removed == 0
+    assert len(get_all_files(conn)) == 2
+    conn.close()
 
 
 def test_scan_directory_patterns_dont_affect_dirs(tmp_path, tmp_db):

@@ -7,8 +7,8 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from send2trash import send2trash
 
-from app.core.db import delete_file, get_all_files, get_connection, get_duplicates, get_file, init_db
-from app.core.scanner import scan_directory
+from app.core.db import clear_files, delete_file, get_all_files, get_connection, get_duplicates, get_file, init_db
+from app.core.scanner import purge_excluded, scan_directory
 
 router = APIRouter()
 
@@ -99,8 +99,24 @@ def start_scan(request: ScanRequest, background_tasks: BackgroundTasks):
     cfg = _load_config()
     exclude_dirs = cfg.get("exclude_dirs", [])
     exclude_patterns = cfg.get("exclude_patterns", [])
+
+    conn = get_connection()
+    init_db(conn)
+    purged = purge_excluded(conn, exclude_dirs, exclude_patterns)
+    conn.close()
+
     background_tasks.add_task(scan_directory, request.path, exclude_dirs, exclude_patterns, _scan_status)
-    return {"status": "started", "path": request.path, "exclude_dirs": exclude_dirs, "exclude_patterns": exclude_patterns}
+    return {"status": "started", "path": request.path, "exclude_dirs": exclude_dirs, "exclude_patterns": exclude_patterns, "purged": purged}
+
+
+@router.post("/cache/clear")
+def clear_cache():
+    """Wipe all cached scan results from the database."""
+    conn = get_connection()
+    init_db(conn)
+    count = clear_files(conn)
+    conn.close()
+    return {"cleared": count}
 
 
 @router.get("/scan/status")
