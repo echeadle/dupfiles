@@ -50,6 +50,26 @@ def serve_ui():
     return FileResponse("static/index.html")
 
 
+# --- Filesystem browser ---
+
+@router.get("/browse")
+def browse(path: str = "~"):
+    p = Path(path).expanduser().resolve()
+    if not p.is_dir():
+        return {"error": f"Not a directory: {path}", "path": str(p), "parent": None, "entries": []}
+
+    entries = []
+    try:
+        for item in sorted(p.iterdir(), key=lambda x: x.name.lower()):
+            if item.is_dir() and not item.is_symlink():
+                entries.append({"name": item.name, "path": str(item)})
+    except PermissionError:
+        pass
+
+    parent = str(p.parent) if p != p.parent else None
+    return {"path": str(p), "parent": parent, "entries": entries}
+
+
 # --- Config ---
 
 @router.get("/config")

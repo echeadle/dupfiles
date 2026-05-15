@@ -1,4 +1,17 @@
 {
-  "exclude_dirs": [".venv", ".git", "__pycache__", "node_modules", "anaconda3"],
-  "exclude_patterns": ["*.log", "*.tmp", ".DS_Store", "Thumbs.db", "*.pyc"]
+  "exclude_dirs": [
+    ".venv",
+    ".git",
+    "__pycache__",
+    "node_modules",
+    "anaconda3",
+    ".next"
+  ],
+  "exclude_patterns": [
+    "*.log",
+    "*.tmp",
+    ".DS_Store",
+    "Thumbs.db",
+    "*.pyc"
+  ]
 }

@@ -59,6 +59,24 @@
 
     input[type=checkbox] { width: 15px; height: 15px; cursor: pointer; accent-color: #2563eb; }
     .cb-col { width: 36px; text-align: center; }
+
+    /* Browser modal */
+    .modal-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 100; align-items: center; justify-content: center; }
+    .modal-backdrop.open { display: flex; }
+    .modal { background: white; border-radius: 10px; width: 560px; max-width: 95vw; max-height: 80vh; display: flex; flex-direction: column; box-shadow: 0 8px 32px rgba(0,0,0,.2); }
+    .modal-header { padding: 1rem 1.25rem; border-bottom: 1px solid #e5e7eb; display: flex; align-items: center; justify-content: space-between; }
+    .modal-header h2 { font-size: 1rem; }
+    .modal-close { background: none; border: none; font-size: 1.4rem; cursor: pointer; color: #6b7280; padding: 0; line-height: 1; }
+    .modal-close:hover { color: #111; }
+    .modal-path { padding: .6rem 1.25rem; background: #f9fafb; border-bottom: 1px solid #e5e7eb; font-size: .82rem; color: #374151; font-family: monospace; word-break: break-all; }
+    .modal-body { overflow-y: auto; flex: 1; }
+    .dir-item { display: flex; align-items: center; gap: .6rem; padding: .55rem 1.25rem; cursor: pointer; border-bottom: 1px solid #f3f4f6; font-size: .9rem; }
+    .dir-item:hover { background: #eff6ff; }
+    .dir-icon { color: #f59e0b; font-size: 1rem; flex-shrink: 0; }
+    .dir-name { flex: 1; }
+    .dir-arrow { color: #9ca3af; font-size: .8rem; }
+    .dir-up { color: #6b7280; }
+    .modal-footer { padding: .75rem 1.25rem; border-top: 1px solid #e5e7eb; display: flex; justify-content: flex-end; gap: .5rem; }
   </style>
 </head>
 <body>
@@ -67,7 +85,8 @@
   <!-- Scan card -->
   <div class="card">
     <div class="row">
-      <input type="text" id="dirInput" placeholder="Enter full directory path to scan" />
+      <input type="text" id="dirInput" placeholder="Enter or browse to a directory" />
+      <button class="btn-outline" onclick="openBrowser()">Browse…</button>
       <button class="btn-blue" id="scanBtn" onclick="startScan()">Scan</button>
       <button class="btn-gray" onclick="clearResults()">Clear</button>
     </div>
@@ -125,9 +144,26 @@
     </table>
   </div>
 
+  <!-- Browser modal -->
+  <div class="modal-backdrop" id="browserModal" onclick="handleBackdropClick(event)">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>Browse for Directory</h2>
+        <button class="modal-close" onclick="closeBrowser()">×</button>
+      </div>
+      <div class="modal-path" id="browserPath">/</div>
+      <div class="modal-body" id="browserBody"></div>
+      <div class="modal-footer">
+        <button class="btn-outline btn-sm" onclick="closeBrowser()">Cancel</button>
+        <button class="btn-blue btn-sm" onclick="selectCurrentDir()">Select This Folder</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     let pollTimer = null;
     let currentConfig = { exclude_dirs: [], exclude_patterns: [] };
+    let browserCurrentPath = '';
 
     // ---- Formatting helpers ----
 
@@ -146,6 +182,69 @@
       const el = document.getElementById('status');
       el.textContent = msg;
       el.className = isError ? 'error' : '';
+    }
+
+    // ---- File browser ----
+
+    async function openBrowser() {
+      const startPath = document.getElementById('dirInput').value.trim() || '~';
+      document.getElementById('browserModal').classList.add('open');
+      await navigateTo(startPath);
+    }
+
+    function closeBrowser() {
+      document.getElementById('browserModal').classList.remove('open');
+    }
+
+    function handleBackdropClick(e) {
+      if (e.target === document.getElementById('browserModal')) closeBrowser();
+    }
+
+    function selectCurrentDir() {
+      document.getElementById('dirInput').value = browserCurrentPath;
+      closeBrowser();
+    }
+
+    async function navigateTo(path) {
+      const r = await fetch(`/browse?path=${encodeURIComponent(path)}`);
+      const data = await r.json();
+
+      if (data.error) {
+        document.getElementById('browserBody').innerHTML =
+          `<div class="dir-item" style="color:#dc2626">${data.error}</div>`;
+        return;
+      }
+
+      browserCurrentPath = data.path;
+      document.getElementById('browserPath').textContent = data.path;
+
+      const body = document.getElementById('browserBody');
+      body.innerHTML = '';
+
+      if (data.parent) {
+        const up = document.createElement('div');
+        up.className = 'dir-item dir-up';
+        up.innerHTML = `<span class="dir-icon">↑</span><span class="dir-name">.. (parent)</span>`;
+        up.onclick = () => navigateTo(data.parent);
+        body.appendChild(up);
+      }
+
+      if (data.entries.length === 0) {
+        body.innerHTML += `<div class="dir-item" style="color:#6b7280; font-style:italic">No subdirectories</div>`;
+        return;
+      }
+
+      for (const entry of data.entries) {
+        const item = document.createElement('div');
+        item.className = 'dir-item';
+        item.innerHTML = `
+          <span class="dir-icon">📁</span>
+          <span class="dir-name">${entry.name}</span>
+          <span class="dir-arrow">›</span>
+        `;
+        item.onclick = () => navigateTo(entry.path);
+        body.appendChild(item);
+      }
     }
 
     // ---- Config ----
@@ -276,7 +375,6 @@
         `${data.total_groups} duplicate group(s) — ~${fmtSize(totalWasted)} potentially recoverable`;
 
       for (const group of data.duplicate_groups) {
-        // Group header row
         const hdr = document.createElement('tr');
         hdr.className = 'group-header';
         hdr.innerHTML = `<td></td><td colspan="3">
@@ -289,7 +387,6 @@
         </td>`;
         tbody.appendChild(hdr);
 
-        // File rows
         for (const file of group.files) {
           const row = document.createElement('tr');
           row.dataset.group = group.hash;

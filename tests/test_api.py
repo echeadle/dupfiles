@@ -93,6 +93,42 @@ def test_full_scan_finds_duplicates(client, tmp_path):
     assert names == {"copy1.txt", "copy2.txt"}
 
 
+# --- Browser tests ---
+
+def test_browse_returns_subdirs(client, tmp_path):
+    (tmp_path / "alpha").mkdir()
+    (tmp_path / "beta").mkdir()
+    (tmp_path / "file.txt").write_bytes(b"x")   # files should not appear
+    r = client.get(f"/browse?path={tmp_path}")
+    assert r.status_code == 200
+    data = r.json()
+    assert data["path"] == str(tmp_path)
+    names = [e["name"] for e in data["entries"]]
+    assert "alpha" in names
+    assert "beta" in names
+    assert "file.txt" not in names
+
+
+def test_browse_returns_parent(client, tmp_path):
+    sub = tmp_path / "sub"
+    sub.mkdir()
+    r = client.get(f"/browse?path={sub}")
+    assert r.json()["parent"] == str(tmp_path)
+
+
+def test_browse_invalid_path_returns_error(client):
+    r = client.get("/browse?path=/no/such/dir")
+    assert "error" in r.json()
+
+
+def test_browse_entries_sorted(client, tmp_path):
+    (tmp_path / "zoo").mkdir()
+    (tmp_path / "ant").mkdir()
+    (tmp_path / "mid").mkdir()
+    names = [e["name"] for e in client.get(f"/browse?path={tmp_path}").json()["entries"]]
+    assert names == sorted(names, key=str.lower)
+
+
 # --- Config tests ---
 
 def test_get_config_returns_current_config(client, tmp_config):
