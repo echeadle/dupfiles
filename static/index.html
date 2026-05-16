@@ -176,7 +176,6 @@
           <option value="1073741824">GB</option>
         </select>
         <button class="btn-outline btn-sm" onclick="resetFilter()">Reset</button>
-        <span id="filterHint" style="font-size:.8rem; color:#9ca3af;"></span>
       </div>
     </div>
 
@@ -223,10 +222,12 @@
     let pollTimer = null;
     let currentConfig = { exclude_dirs: [], exclude_patterns: [] };
     let browserCurrentPath = '';
-    let allGroups = [];       // full unfiltered duplicate groups from last fetch
-    let currentGroups = [];   // post-filter groups currently being paged through
-    let renderedCount = 0;    // how many groups have been appended to the DOM
-    const PAGE_SIZE = 50;
+    let currentOffset  = 0;
+    let currentMinSize = 0;
+    let totalGroups    = 0;
+    let renderedCount  = 0;
+    let filterTimer    = null;
+    const PAGE_SIZE    = 50;
 
     // ---- Formatting helpers ----
 
@@ -420,58 +421,44 @@
     // ---- Results ----
 
     async function showDuplicates() {
-      const data = await (await fetch('/duplicates')).json();
-      allGroups = data.duplicate_groups || [];
-      document.getElementById('resultsCard').style.display = 'block';
-      document.getElementById('filterBar').style.display = allGroups.length ? 'block' : 'none';
-      renderGroups(allGroups);
-    }
-
-    function applyFilter() {
-      const value    = parseFloat(document.getElementById('minSizeInput').value) || 0;
-      const unit     = parseInt(document.getElementById('sizeUnit').value);
-      const minBytes = Math.round(value * unit);
-      const filtered = allGroups.filter(g => (g.files[0]?.size || 0) >= minBytes);
-      const hidden   = allGroups.length - filtered.length;
-      document.getElementById('filterHint').textContent =
-        hidden > 0 ? `(${hidden} group${hidden > 1 ? 's' : ''} hidden)` : '';
-      renderGroups(filtered);  // resets pagination
-    }
-
-    function resetFilter() {
-      document.getElementById('minSizeInput').value = '0';
-      document.getElementById('filterHint').textContent = '';
-      renderGroups(allGroups);  // resets pagination
-    }
-
-    function renderGroups(groups) {
-      currentGroups = groups;
-      renderedCount = 0;
+      currentOffset  = 0;
+      renderedCount  = 0;
+      totalGroups    = 0;
       document.getElementById('resultsBody').innerHTML = '';
       document.getElementById('loadMoreWrap').style.display = 'none';
-      updateDeleteBar();
+      document.getElementById('resultsCard').style.display = 'block';
+      await fetchPage();
+    }
 
-      if (groups.length === 0) {
-        const isEmpty = allGroups.length === 0;
+    async function fetchPage() {
+      const url  = `/duplicates?limit=${PAGE_SIZE}&offset=${currentOffset}&min_size=${currentMinSize}`;
+      const data = await (await fetch(url)).json();
+      totalGroups    = data.total_groups;
+      currentOffset += data.returned_groups;
+
+      document.getElementById('filterBar').style.display = 'block';
+
+      if (data.total_groups === 0) {
         document.getElementById('noResults').style.display = 'block';
-        document.getElementById('noResults').textContent = isEmpty
-          ? 'No duplicate files found.'
-          : 'No duplicates match the current filter.';
+        document.getElementById('noResults').textContent =
+          currentMinSize > 0 ? 'No duplicates match the current filter.' : 'No duplicate files found.';
         document.getElementById('resultsTable').style.display = 'none';
         document.getElementById('summary').textContent = '';
+        document.getElementById('loadMoreWrap').style.display = 'none';
         return;
       }
 
       document.getElementById('noResults').style.display = 'none';
       document.getElementById('resultsTable').style.display = 'table';
-      appendNextPage();
+      appendGroups(data.duplicate_groups);
+      renderedCount += data.returned_groups;
+      updateSummary();
+      updateLoadMore();
     }
 
-    function appendNextPage() {
-      const tbody   = document.getElementById('resultsBody');
-      const batch   = currentGroups.slice(renderedCount, renderedCount + PAGE_SIZE);
-
-      for (const group of batch) {
+    function appendGroups(groups) {
+      const tbody = document.getElementById('resultsBody');
+      for (const group of groups) {
         const hdr = document.createElement('tr');
         hdr.className = 'group-header';
         hdr.innerHTML = `<td></td><td colspan="3">
@@ -498,26 +485,19 @@
           tbody.appendChild(row);
         }
       }
-
-      renderedCount += batch.length;
-      updateSummary();
-      updateLoadMore();
     }
 
-    function loadMore() {
-      appendNextPage();
+    async function loadMore() {
+      await fetchPage();
     }
 
     function updateSummary() {
-      const totalWasted = currentGroups.reduce(
-        (acc, g) => acc + g.total_size - (g.files[0]?.size || 0), 0
-      );
       document.getElementById('summary').textContent =
-        `Showing ${renderedCount} of ${currentGroups.length} group(s) — ~${fmtSize(totalWasted)} potentially recoverable`;
+        `Showing ${renderedCount.toLocaleString()} of ${totalGroups.toLocaleString()} group(s)`;
     }
 
     function updateLoadMore() {
-      const remaining = currentGroups.length - renderedCount;
+      const remaining = totalGroups - renderedCount;
       const wrap = document.getElementById('loadMoreWrap');
       if (remaining > 0) {
         wrap.style.display = 'block';
@@ -528,6 +508,28 @@
       } else {
         wrap.style.display = 'none';
       }
+    }
+
+    function applyFilter() {
+      clearTimeout(filterTimer);
+      filterTimer = setTimeout(async () => {
+        const value    = parseFloat(document.getElementById('minSizeInput').value) || 0;
+        const unit     = parseInt(document.getElementById('sizeUnit').value);
+        currentMinSize = Math.round(value * unit);
+        currentOffset  = 0;
+        renderedCount  = 0;
+        document.getElementById('resultsBody').innerHTML = '';
+        await fetchPage();
+      }, 400);
+    }
+
+    async function resetFilter() {
+      document.getElementById('minSizeInput').value = '0';
+      currentMinSize = 0;
+      currentOffset  = 0;
+      renderedCount  = 0;
+      document.getElementById('resultsBody').innerHTML = '';
+      await fetchPage();
     }
 
     // ---- Selection helpers ----

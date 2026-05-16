@@ -1,4 +1,7 @@
-from app.core.db import upsert_file, get_file, get_all_files, get_duplicates, delete_file, clear_files, get_stats
+from app.core.db import (
+    upsert_file, get_file, get_all_files, get_duplicates, delete_file,
+    clear_files, get_stats, get_duplicate_group_count, get_duplicate_groups_page,
+)
 
 
 def test_upsert_inserts_new_record(db_conn):
@@ -100,3 +103,29 @@ def test_get_stats_with_duplicates(db_conn):
     assert s["duplicate_groups"] == 1
     assert s["duplicate_files"]  == 2
     assert s["wasted_space"]     == 1000  # 1 extra copy × 1000 bytes
+
+
+def test_get_duplicate_group_count(db_conn):
+    upsert_file(db_conn, "/tmp/a.txt", "h1", 100, 1.0)
+    upsert_file(db_conn, "/tmp/b.txt", "h1", 100, 2.0)
+    upsert_file(db_conn, "/tmp/c.txt", "h2", 200, 3.0)
+    upsert_file(db_conn, "/tmp/d.txt", "h2", 200, 4.0)
+    upsert_file(db_conn, "/tmp/e.txt", "h3", 999, 5.0)  # unique
+    db_conn.commit()
+    assert get_duplicate_group_count(db_conn) == 2
+    assert get_duplicate_group_count(db_conn, min_size=150) == 1  # only h2
+
+
+def test_get_duplicate_groups_page_limit_and_offset(db_conn):
+    for i in range(4):
+        upsert_file(db_conn, f"/tmp/a{i}.txt", f"hash{i}", (i + 1) * 100, 1.0)
+        upsert_file(db_conn, f"/tmp/b{i}.txt", f"hash{i}", (i + 1) * 100, 2.0)
+    db_conn.commit()
+
+    page1 = get_duplicate_groups_page(db_conn, limit=2, offset=0)
+    page2 = get_duplicate_groups_page(db_conn, limit=2, offset=2)
+    hashes1 = {r["hash"] for r in page1}
+    hashes2 = {r["hash"] for r in page2}
+    assert len(hashes1) == 2
+    assert len(hashes2) == 2
+    assert hashes1.isdisjoint(hashes2)  # no overlap between pages

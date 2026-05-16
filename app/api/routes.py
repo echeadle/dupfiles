@@ -7,7 +7,11 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from send2trash import send2trash
 
-from app.core.db import DB_PATH, clear_files, delete_file, get_all_files, get_connection, get_duplicates, get_file, get_stats, init_db
+from app.core.db import (
+    DB_PATH, clear_files, delete_file, get_all_files, get_connection,
+    get_duplicate_group_count, get_duplicate_groups_page, get_duplicates,
+    get_file, get_stats, init_db,
+)
 from app.core.scanner import purge_excluded, scan_directory
 
 router = APIRouter()
@@ -172,11 +176,12 @@ def trash_files(request: DeleteRequest):
 # --- Duplicates ---
 
 @router.get("/duplicates")
-def list_duplicates(min_size: int = 0):
-    """Return duplicate groups. min_size filters out groups where each file is smaller than that many bytes."""
+def list_duplicates(min_size: int = 0, limit: int = 50, offset: int = 0):
+    """Return a page of duplicate groups sorted by wasted space descending."""
     conn = get_connection()
     init_db(conn)
-    rows = get_duplicates(conn)
+    total  = get_duplicate_group_count(conn, min_size)
+    rows   = get_duplicate_groups_page(conn, limit, offset, min_size)
     conn.close()
 
     groups: dict[str, list] = {}
@@ -186,8 +191,14 @@ def list_duplicates(min_size: int = 0):
     result = [
         {"hash": h, "count": len(files), "total_size": sum(f["size"] for f in files), "files": files}
         for h, files in groups.items()
-        if files[0]["size"] >= min_size
     ]
     result.sort(key=lambda g: g["total_size"], reverse=True)
 
-    return {"total_groups": len(result), "duplicate_groups": result, "min_size": min_size}
+    return {
+        "total_groups":    total,
+        "returned_groups": len(result),
+        "offset":          offset,
+        "limit":           limit,
+        "min_size":        min_size,
+        "duplicate_groups": result,
+    }

@@ -93,6 +93,49 @@ def get_stats(conn: sqlite3.Connection) -> dict:
     }
 
 
+def get_duplicate_group_count(conn: sqlite3.Connection, min_size: int = 0) -> int:
+    """Total number of duplicate groups matching min_size filter."""
+    return conn.execute("""
+        SELECT COUNT(*) FROM (
+            SELECT hash FROM files
+            GROUP BY hash
+            HAVING COUNT(*) > 1 AND MIN(size) >= ?
+        )
+    """, (min_size,)).fetchone()[0]
+
+
+def get_duplicate_groups_page(
+    conn: sqlite3.Connection,
+    limit: int,
+    offset: int,
+    min_size: int = 0,
+) -> list[dict]:
+    """Return one page of duplicate files, sorted by wasted space descending."""
+    hashes = [r[0] for r in conn.execute("""
+        SELECT hash FROM (
+            SELECT hash,
+                   COUNT(*) AS cnt,
+                   MIN(size) AS file_size,
+                   (COUNT(*) - 1) * MIN(size) AS wasted
+            FROM files
+            GROUP BY hash
+            HAVING cnt > 1 AND file_size >= ?
+            ORDER BY wasted DESC
+            LIMIT ? OFFSET ?
+        )
+    """, (min_size, limit, offset)).fetchall()]
+
+    if not hashes:
+        return []
+
+    placeholders = ",".join("?" * len(hashes))
+    rows = conn.execute(
+        f"SELECT * FROM files WHERE hash IN ({placeholders}) ORDER BY hash, path",
+        hashes,
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
 def get_duplicates(conn: sqlite3.Connection) -> list[dict]:
     rows = conn.execute("""
         SELECT * FROM files

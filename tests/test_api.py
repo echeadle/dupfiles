@@ -87,6 +87,31 @@ def test_duplicates_min_size_above_all_returns_empty(client, tmp_db):
     assert client.get("/duplicates?min_size=999999").json()["total_groups"] == 0
 
 
+def test_duplicates_response_includes_pagination_fields(client):
+    r = client.get("/duplicates")
+    data = r.json()
+    for key in ("total_groups", "returned_groups", "offset", "limit", "min_size"):
+        assert key in data
+
+
+def test_duplicates_limit_restricts_returned_groups(client, tmp_db):
+    conn = get_connection(tmp_db)
+    init_db(conn)
+    for i in range(6):
+        upsert_file(conn, f"/tmp/a{i}.txt", f"hash{i}", 100, float(i))
+        upsert_file(conn, f"/tmp/b{i}.txt", f"hash{i}", 100, float(i) + 0.5)
+    conn.commit()
+    conn.close()
+
+    data = client.get("/duplicates?limit=3&offset=0").json()
+    assert data["returned_groups"] == 3
+    assert data["total_groups"]    == 6
+
+    data2 = client.get("/duplicates?limit=3&offset=3").json()
+    assert data2["returned_groups"] == 3
+    assert data2["offset"]          == 3
+
+
 def test_duplicates_sorted_by_wasted_space(client, tmp_db):
     conn = get_connection(tmp_db)
     init_db(conn)
