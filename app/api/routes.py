@@ -162,7 +162,8 @@ def trash_files(request: DeleteRequest):
 # --- Duplicates ---
 
 @router.get("/duplicates")
-def list_duplicates():
+def list_duplicates(min_size: int = 0):
+    """Return duplicate groups. min_size filters out groups where each file is smaller than that many bytes."""
     conn = get_connection()
     init_db(conn)
     rows = get_duplicates(conn)
@@ -175,7 +176,8 @@ def list_duplicates():
     result = [
         {"hash": h, "count": len(files), "total_size": sum(f["size"] for f in files), "files": files}
         for h, files in groups.items()
+        if files[0]["size"] >= min_size
     ]
     result.sort(key=lambda g: g["total_size"], reverse=True)
 
-    return {"total_groups": len(result), "duplicate_groups": result}
+    return {"total_groups": len(result), "duplicate_groups": result, "min_size": min_size}

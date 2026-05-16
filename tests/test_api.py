@@ -48,6 +48,45 @@ def test_duplicates_empty_on_fresh_db(client):
     assert data["duplicate_groups"] == []
 
 
+def test_duplicates_min_size_filters_small_groups(client, tmp_db):
+    conn = get_connection(tmp_db)
+    init_db(conn)
+    upsert_file(conn, "/tmp/small_a.txt", "hash_small", 500, 1.0)
+    upsert_file(conn, "/tmp/small_b.txt", "hash_small", 500, 2.0)
+    upsert_file(conn, "/tmp/big_a.txt",   "hash_big",  5_000_000, 3.0)
+    upsert_file(conn, "/tmp/big_b.txt",   "hash_big",  5_000_000, 4.0)
+    conn.commit()
+    conn.close()
+
+    r = client.get("/duplicates?min_size=1000000")
+    data = r.json()
+    assert data["total_groups"] == 1
+    assert data["duplicate_groups"][0]["hash"] == "hash_big"
+    assert data["min_size"] == 1000000
+
+
+def test_duplicates_min_size_zero_returns_all(client, tmp_db):
+    conn = get_connection(tmp_db)
+    init_db(conn)
+    upsert_file(conn, "/tmp/a.txt", "hash_x", 1, 1.0)
+    upsert_file(conn, "/tmp/b.txt", "hash_x", 1, 2.0)
+    conn.commit()
+    conn.close()
+
+    assert client.get("/duplicates?min_size=0").json()["total_groups"] == 1
+
+
+def test_duplicates_min_size_above_all_returns_empty(client, tmp_db):
+    conn = get_connection(tmp_db)
+    init_db(conn)
+    upsert_file(conn, "/tmp/a.txt", "hash_x", 100, 1.0)
+    upsert_file(conn, "/tmp/b.txt", "hash_x", 100, 2.0)
+    conn.commit()
+    conn.close()
+
+    assert client.get("/duplicates?min_size=999999").json()["total_groups"] == 0
+
+
 def test_duplicates_sorted_by_wasted_space(client, tmp_db):
     conn = get_connection(tmp_db)
     init_db(conn)
