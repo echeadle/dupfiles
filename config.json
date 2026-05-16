@@ -13,6 +13,6 @@
     ".DS_Store",
     "Thumbs.db",
     "*.pyc",
-    ".ico"
+    "*.ico"
   ]
 }
