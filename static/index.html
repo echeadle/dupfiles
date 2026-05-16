@@ -197,6 +197,10 @@
       </thead>
       <tbody id="resultsBody"></tbody>
     </table>
+    <div id="loadMoreWrap" style="display:none; text-align:center; padding:1rem 0;">
+      <button class="btn-outline" id="loadMoreBtn" onclick="loadMore()"></button>
+      <div id="pageInfo" style="font-size:.8rem; color:#9ca3af; margin-top:.4rem;"></div>
+    </div>
   </div>
 
   <!-- Browser modal -->
@@ -219,7 +223,10 @@
     let pollTimer = null;
     let currentConfig = { exclude_dirs: [], exclude_patterns: [] };
     let browserCurrentPath = '';
-    let allGroups = [];   // full unfiltered duplicate groups from last fetch
+    let allGroups = [];       // full unfiltered duplicate groups from last fetch
+    let currentGroups = [];   // post-filter groups currently being paged through
+    let renderedCount = 0;    // how many groups have been appended to the DOM
+    const PAGE_SIZE = 50;
 
     // ---- Formatting helpers ----
 
@@ -421,25 +428,27 @@
     }
 
     function applyFilter() {
-      const value = parseFloat(document.getElementById('minSizeInput').value) || 0;
-      const unit  = parseInt(document.getElementById('sizeUnit').value);
+      const value    = parseFloat(document.getElementById('minSizeInput').value) || 0;
+      const unit     = parseInt(document.getElementById('sizeUnit').value);
       const minBytes = Math.round(value * unit);
       const filtered = allGroups.filter(g => (g.files[0]?.size || 0) >= minBytes);
-      const hidden = allGroups.length - filtered.length;
+      const hidden   = allGroups.length - filtered.length;
       document.getElementById('filterHint').textContent =
         hidden > 0 ? `(${hidden} group${hidden > 1 ? 's' : ''} hidden)` : '';
-      renderGroups(filtered);
+      renderGroups(filtered);  // resets pagination
     }
 
     function resetFilter() {
       document.getElementById('minSizeInput').value = '0';
       document.getElementById('filterHint').textContent = '';
-      renderGroups(allGroups);
+      renderGroups(allGroups);  // resets pagination
     }
 
     function renderGroups(groups) {
-      const tbody = document.getElementById('resultsBody');
-      tbody.innerHTML = '';
+      currentGroups = groups;
+      renderedCount = 0;
+      document.getElementById('resultsBody').innerHTML = '';
+      document.getElementById('loadMoreWrap').style.display = 'none';
       updateDeleteBar();
 
       if (groups.length === 0) {
@@ -449,20 +458,20 @@
           ? 'No duplicate files found.'
           : 'No duplicates match the current filter.';
         document.getElementById('resultsTable').style.display = 'none';
-        document.getElementById('summary').textContent = isEmpty ? 'No duplicates found.' : '';
+        document.getElementById('summary').textContent = '';
         return;
       }
 
       document.getElementById('noResults').style.display = 'none';
       document.getElementById('resultsTable').style.display = 'table';
+      appendNextPage();
+    }
 
-      const totalWasted = groups.reduce(
-        (acc, g) => acc + g.total_size - (g.files[0]?.size || 0), 0
-      );
-      document.getElementById('summary').textContent =
-        `${groups.length} group(s) shown — ~${fmtSize(totalWasted)} potentially recoverable`;
+    function appendNextPage() {
+      const tbody   = document.getElementById('resultsBody');
+      const batch   = currentGroups.slice(renderedCount, renderedCount + PAGE_SIZE);
 
-      for (const group of groups) {
+      for (const group of batch) {
         const hdr = document.createElement('tr');
         hdr.className = 'group-header';
         hdr.innerHTML = `<td></td><td colspan="3">
@@ -488,6 +497,36 @@
           `;
           tbody.appendChild(row);
         }
+      }
+
+      renderedCount += batch.length;
+      updateSummary();
+      updateLoadMore();
+    }
+
+    function loadMore() {
+      appendNextPage();
+    }
+
+    function updateSummary() {
+      const totalWasted = currentGroups.reduce(
+        (acc, g) => acc + g.total_size - (g.files[0]?.size || 0), 0
+      );
+      document.getElementById('summary').textContent =
+        `Showing ${renderedCount} of ${currentGroups.length} group(s) — ~${fmtSize(totalWasted)} potentially recoverable`;
+    }
+
+    function updateLoadMore() {
+      const remaining = currentGroups.length - renderedCount;
+      const wrap = document.getElementById('loadMoreWrap');
+      if (remaining > 0) {
+        wrap.style.display = 'block';
+        document.getElementById('loadMoreBtn').textContent =
+          `Load next ${Math.min(remaining, PAGE_SIZE)} groups`;
+        document.getElementById('pageInfo').textContent =
+          `${remaining.toLocaleString()} group(s) remaining`;
+      } else {
+        wrap.style.display = 'none';
       }
     }
 
