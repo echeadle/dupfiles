@@ -60,6 +60,15 @@
     input[type=checkbox] { width: 15px; height: 15px; cursor: pointer; accent-color: #2563eb; }
     .cb-col { width: 36px; text-align: center; }
 
+    /* Stats panel */
+    .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; }
+    @media (max-width: 640px) { .stats-grid { grid-template-columns: repeat(2, 1fr); } }
+    .stat-tile { background: #f9fafb; border-radius: 6px; padding: .85rem 1rem; }
+    .stat-label { font-size: .75rem; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: #6b7280; margin-bottom: .25rem; }
+    .stat-value { font-size: 1.4rem; font-weight: 700; color: #111; }
+    .stat-value.warn { color: #dc2626; }
+    .stat-sub { font-size: .75rem; color: #9ca3af; margin-top: .15rem; }
+
     /* Browser modal */
     .modal-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 100; align-items: center; justify-content: center; }
     .modal-backdrop.open { display: flex; }
@@ -94,6 +103,32 @@
     <div id="status"></div>
     <div class="progress-bar-wrap" id="progressWrap">
       <div class="progress-bar" id="progressBar"></div>
+    </div>
+  </div>
+
+  <!-- Stats card -->
+  <div class="card" id="statsCard">
+    <div class="stats-grid">
+      <div class="stat-tile">
+        <div class="stat-label">Files in cache</div>
+        <div class="stat-value" id="statFiles">—</div>
+        <div class="stat-sub" id="statSize"></div>
+      </div>
+      <div class="stat-tile">
+        <div class="stat-label">Duplicate groups</div>
+        <div class="stat-value" id="statGroups">—</div>
+        <div class="stat-sub" id="statDupFiles"></div>
+      </div>
+      <div class="stat-tile">
+        <div class="stat-label">Recoverable space</div>
+        <div class="stat-value warn" id="statWasted">—</div>
+        <div class="stat-sub">across all duplicates</div>
+      </div>
+      <div class="stat-tile">
+        <div class="stat-label">Cache DB size</div>
+        <div class="stat-value" id="statDb">—</div>
+        <div class="stat-sub">files.db</div>
+      </div>
     </div>
   </div>
 
@@ -371,6 +406,7 @@
           (s.errors?.length ? ` (${s.errors.length} errors)` : ''));
         document.getElementById('scanBtn').disabled = false;
         await showDuplicates();
+        await loadStats();
       }
     }
 
@@ -510,6 +546,7 @@
       setStatus(msg2);
 
       await showDuplicates();
+      await loadStats();
     }
 
     // ---- Clear cache ----
@@ -530,8 +567,22 @@
       setStatus('');
     }
 
+    // ---- Stats ----
+
+    async function loadStats() {
+      const s = await (await fetch('/stats')).json();
+      document.getElementById('statFiles').textContent  = s.total_files.toLocaleString();
+      document.getElementById('statSize').textContent   = fmtSize(s.total_size);
+      document.getElementById('statGroups').textContent = s.duplicate_groups.toLocaleString();
+      document.getElementById('statDupFiles').textContent =
+        s.duplicate_files > 0 ? `${s.duplicate_files} files involved` : 'none found';
+      document.getElementById('statWasted').textContent = s.wasted_space > 0 ? fmtSize(s.wasted_space) : '0 B';
+      document.getElementById('statDb').textContent     = fmtSize(s.db_size);
+    }
+
     // ---- Init ----
     loadConfig();
+    loadStats();
   </script>
 </body>
 </html>

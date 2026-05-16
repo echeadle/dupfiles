@@ -57,6 +57,42 @@ def delete_file(conn: sqlite3.Connection, path: str) -> bool:
     return cursor.rowcount > 0
 
 
+def get_stats(conn: sqlite3.Connection) -> dict:
+    """Return aggregate statistics computed directly from the DB."""
+    total_files = conn.execute("SELECT COUNT(*) FROM files").fetchone()[0]
+    total_size  = conn.execute("SELECT COALESCE(SUM(size), 0) FROM files").fetchone()[0]
+
+    dup_groups = conn.execute("""
+        SELECT COUNT(*) FROM (
+            SELECT hash FROM files GROUP BY hash HAVING COUNT(*) > 1
+        )
+    """).fetchone()[0]
+
+    dup_files = conn.execute("""
+        SELECT COUNT(*) FROM files
+        WHERE hash IN (SELECT hash FROM files GROUP BY hash HAVING COUNT(*) > 1)
+    """).fetchone()[0]
+
+    # wasted = size × (copies − 1) summed across all duplicate groups
+    wasted_space = conn.execute("""
+        SELECT COALESCE(SUM(grp_size * (grp_count - 1)), 0)
+        FROM (
+            SELECT MIN(size) AS grp_size, COUNT(*) AS grp_count
+            FROM files
+            GROUP BY hash
+            HAVING grp_count > 1
+        )
+    """).fetchone()[0]
+
+    return {
+        "total_files":    total_files,
+        "total_size":     total_size,
+        "duplicate_groups": dup_groups,
+        "duplicate_files":  dup_files,
+        "wasted_space":   wasted_space,
+    }
+
+
 def get_duplicates(conn: sqlite3.Connection) -> list[dict]:
     rows = conn.execute("""
         SELECT * FROM files

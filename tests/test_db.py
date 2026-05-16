@@ -1,4 +1,4 @@
-from app.core.db import upsert_file, get_file, get_all_files, get_duplicates, delete_file, clear_files
+from app.core.db import upsert_file, get_file, get_all_files, get_duplicates, delete_file, clear_files, get_stats
 
 
 def test_upsert_inserts_new_record(db_conn):
@@ -77,3 +77,26 @@ def test_clear_files_removes_all_records(db_conn):
 
 def test_clear_files_on_empty_db_returns_zero(db_conn):
     assert clear_files(db_conn) == 0
+
+
+def test_get_stats_empty_db(db_conn):
+    s = get_stats(db_conn)
+    assert s["total_files"]      == 0
+    assert s["total_size"]       == 0
+    assert s["duplicate_groups"] == 0
+    assert s["duplicate_files"]  == 0
+    assert s["wasted_space"]     == 0
+
+
+def test_get_stats_with_duplicates(db_conn):
+    # Two copies of a 1000-byte file, one unique 500-byte file
+    upsert_file(db_conn, "/tmp/a.txt", "hash_dup", 1000, 1.0)
+    upsert_file(db_conn, "/tmp/b.txt", "hash_dup", 1000, 2.0)
+    upsert_file(db_conn, "/tmp/c.txt", "hash_uni",  500, 3.0)
+    db_conn.commit()
+    s = get_stats(db_conn)
+    assert s["total_files"]      == 3
+    assert s["total_size"]       == 2500
+    assert s["duplicate_groups"] == 1
+    assert s["duplicate_files"]  == 2
+    assert s["wasted_space"]     == 1000  # 1 extra copy × 1000 bytes

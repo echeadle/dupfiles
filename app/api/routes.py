@@ -7,7 +7,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from send2trash import send2trash
 
-from app.core.db import clear_files, delete_file, get_all_files, get_connection, get_duplicates, get_file, init_db
+from app.core.db import DB_PATH, clear_files, delete_file, get_all_files, get_connection, get_duplicates, get_file, get_stats, init_db
 from app.core.scanner import purge_excluded, scan_directory
 
 router = APIRouter()
@@ -107,6 +107,16 @@ def start_scan(request: ScanRequest, background_tasks: BackgroundTasks):
 
     background_tasks.add_task(scan_directory, request.path, exclude_dirs, exclude_patterns, _scan_status)
     return {"status": "started", "path": request.path, "exclude_dirs": exclude_dirs, "exclude_patterns": exclude_patterns, "purged": purged}
+
+
+@router.get("/stats")
+def stats():
+    conn = get_connection()
+    init_db(conn)
+    data = get_stats(conn)
+    conn.close()
+    db_size = os.path.getsize(DB_PATH) if os.path.exists(DB_PATH) else 0
+    return {**data, "db_size": db_size}
 
 
 @router.post("/cache/clear")

@@ -132,6 +132,30 @@ def test_full_scan_finds_duplicates(client, tmp_path):
     assert names == {"copy1.txt", "copy2.txt"}
 
 
+# --- Stats tests ---
+
+def test_stats_endpoint_returns_expected_fields(client):
+    r = client.get("/stats")
+    assert r.status_code == 200
+    data = r.json()
+    for key in ("total_files", "total_size", "duplicate_groups", "duplicate_files", "wasted_space", "db_size"):
+        assert key in data
+
+
+def test_stats_wasted_space_correct(client, tmp_db):
+    conn = get_connection(tmp_db)
+    init_db(conn)
+    upsert_file(conn, "/tmp/a.txt", "h", 2000, 1.0)
+    upsert_file(conn, "/tmp/b.txt", "h", 2000, 2.0)
+    upsert_file(conn, "/tmp/c.txt", "h", 2000, 3.0)
+    conn.commit()
+    conn.close()
+    data = client.get("/stats").json()
+    assert data["duplicate_groups"] == 1
+    assert data["duplicate_files"]  == 3
+    assert data["wasted_space"]     == 4000  # 2 extra copies × 2000 bytes
+
+
 # --- Cache tests ---
 
 def test_clear_cache_endpoint(client, tmp_db):
