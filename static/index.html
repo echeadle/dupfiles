@@ -600,15 +600,24 @@
       const r = await fetch('/cache/clear', { method: 'POST' });
       const data = await r.json();
       setStatus(`Cache cleared — ${data.cleared} record(s) removed.`);
+      await loadStats();
+      await showDuplicates();
     }
 
     // ---- Clear results ----
 
-    function clearResults() {
+    async function clearResults() {
+      document.getElementById('resultsBody').innerHTML = '';
       document.getElementById('resultsCard').style.display = 'none';
       document.getElementById('progressWrap').style.display = 'none';
       document.getElementById('progressBar').style.width = '0%';
-      setStatus('');
+      currentOffset  = 0;
+      renderedCount  = 0;
+      totalGroups    = 0;
+      currentMinSize = 0;
+      document.getElementById('minSizeInput').value = '0';
+      await loadStats();
+      setStatus('Display cleared.');
     }
 
     // ---- Stats ----
