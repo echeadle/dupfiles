@@ -316,6 +316,9 @@
     async function loadConfig() {
       const r = await fetch('/config');
       currentConfig = await r.json();
+      if (currentConfig.last_path) {
+        document.getElementById('dirInput').value = currentConfig.last_path;
+      }
       renderConfig();
     }
 
@@ -624,6 +627,7 @@
     // ---- Init ----
     loadConfig();
     loadStats();
+    showDuplicates();
   </script>
 </body>
 </html>

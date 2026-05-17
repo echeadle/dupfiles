@@ -77,15 +77,23 @@ def browse(path: str = "~"):
 # --- Config ---
 
 @router.get("/config")
-def get_config() -> Config:
-    return Config(**_load_config())
+def get_config():
+    cfg = _load_config()
+    return {
+        "exclude_dirs":     cfg.get("exclude_dirs", []),
+        "exclude_patterns": cfg.get("exclude_patterns", []),
+        "last_path":        cfg.get("last_path", ""),
+    }
 
 
 @router.put("/config")
 def update_config(config: Config) -> Config:
+    existing = _load_config()
+    data = config.model_dump()
+    data["last_path"] = existing.get("last_path", "")  # preserve across exclude-list edits
     tmp = CONFIG_PATH + ".tmp"
     with open(tmp, "w") as f:
-        json.dump(config.model_dump(), f, indent=2)
+        json.dump(data, f, indent=2)
     os.replace(tmp, CONFIG_PATH)
     return config
 
@@ -103,6 +111,12 @@ def start_scan(request: ScanRequest, background_tasks: BackgroundTasks):
     cfg = _load_config()
     exclude_dirs = cfg.get("exclude_dirs", [])
     exclude_patterns = cfg.get("exclude_patterns", [])
+
+    cfg["last_path"] = request.path
+    tmp = CONFIG_PATH + ".tmp"
+    with open(tmp, "w") as f:
+        json.dump(cfg, f, indent=2)
+    os.replace(tmp, CONFIG_PATH)
 
     conn = get_connection()
     init_db(conn)

@@ -48,6 +48,7 @@ def clear_files(conn: sqlite3.Connection) -> int:
     """Delete all records from the files table. Returns the count removed."""
     cursor = conn.execute("DELETE FROM files")
     conn.commit()
+    conn.execute("VACUUM")
     return cursor.rowcount
 
 

@@ -5,7 +5,8 @@
     "__pycache__",
     "node_modules",
     "anaconda3",
-    ".next"
+    ".next",
+    "flatpak"
   ],
   "exclude_patterns": [
     "*.log",
@@ -14,5 +15,6 @@
     "Thumbs.db",
     "*.pyc",
     "*.ico"
-  ]
+  ],
+  "last_path": "/home/echeadle/Projects/coding_projects/apps/dupfiles/testdata"
 }
