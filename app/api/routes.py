@@ -19,7 +19,7 @@ router = APIRouter()
 CONFIG_PATH = "config.json"
 
 # In-memory scan state — fine for a single-process personal tool
-_scan_status: dict = {"running": False, "done": False, "processed": 0, "skipped": 0, "errors": []}
+_scan_status: dict = {"running": False, "done": False, "processed": 0, "skipped": 0, "errors": [], "stop_requested": False, "stopped": False}
 
 
 # --- Models ---
@@ -123,6 +123,8 @@ def start_scan(request: ScanRequest, background_tasks: BackgroundTasks):
     purged = purge_excluded(conn, exclude_dirs, exclude_patterns)
     conn.close()
 
+    _scan_status["stop_requested"] = False
+    _scan_status["stopped"] = False
     background_tasks.add_task(scan_directory, request.path, exclude_dirs, exclude_patterns, _scan_status)
     return {"status": "started", "path": request.path, "exclude_dirs": exclude_dirs, "exclude_patterns": exclude_patterns, "purged": purged}
 
@@ -150,6 +152,14 @@ def clear_cache():
 @router.get("/scan/status")
 def get_scan_status():
     return _scan_status
+
+
+@router.post("/scan/stop")
+def stop_scan():
+    if not _scan_status.get("running"):
+        return {"status": "not_running"}
+    _scan_status["stop_requested"] = True
+    return {"status": "stop_requested"}
 
 
 # --- Files ---

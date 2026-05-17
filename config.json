@@ -6,7 +6,8 @@
     "node_modules",
     "anaconda3",
     ".next",
-    "flatpak"
+    "flatpak",
+    ".*"
   ],
   "exclude_patterns": [
     "*.log",
@@ -16,5 +17,5 @@
     "*.pyc",
     "*.ico"
   ],
-  "last_path": "/home/echeadle/Projects/coding_projects/apps/dupfiles/testdata"
+  "last_path": "/home/echeadle"
 }

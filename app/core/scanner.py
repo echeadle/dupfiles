@@ -23,16 +23,31 @@ def is_excluded_file(filename: str, patterns: list[str]) -> bool:
     return any(fnmatch.fnmatch(filename, p) for p in patterns)
 
 
+def _compile_dir_excludes(patterns: list[str]) -> tuple[set[str], list[str]]:
+    """Split exclude_dirs into exact names (set) and glob patterns (list).
+
+    Called once per scan — not inside the directory loop.
+    """
+    exact = {p for p in patterns if not any(c in p for c in ('*', '?', '['))}
+    globs = [p for p in patterns if any(c in p for c in ('*', '?', '['))]
+    return exact, globs
+
+
+def _dir_excluded(dirname: str, exact: set[str], globs: list[str]) -> bool:
+    return dirname in exact or any(fnmatch.fnmatch(dirname, p) for p in globs)
+
+
 def purge_excluded(conn, exclude_dirs: list[str], exclude_patterns: list[str]) -> int:
     """Remove DB records whose path falls under an excluded dir or matches an excluded pattern.
 
     Returns the number of records removed.
     """
+    exact, globs = _compile_dir_excludes(exclude_dirs)
     rows = get_all_files(conn)
     removed = 0
     for row in rows:
         p = Path(row["path"])
-        if any(part in exclude_dirs for part in p.parts) or is_excluded_file(p.name, exclude_patterns):
+        if any(_dir_excluded(part, exact, globs) for part in p.parts) or is_excluded_file(p.name, exclude_patterns):
             delete_file(conn, row["path"])
             removed += 1
     conn.commit()
@@ -55,13 +70,17 @@ def scan_directory(
     conn = get_connection()
     init_db(conn)
 
+    exact_dirs, glob_dirs = _compile_dir_excludes(exclude_dirs)
     status.update({"running": True, "done": False, "processed": 0, "skipped": 0, "errors": []})
 
     try:
         for root, dirs, files in os.walk(directory_path):
+            if status.get("stop_requested"):
+                break
+
             dirs[:] = [
                 d for d in dirs
-                if d not in exclude_dirs
+                if not _dir_excluded(d, exact_dirs, glob_dirs)
                 and not os.path.islink(os.path.join(root, d))
             ]
 
@@ -101,3 +120,5 @@ def scan_directory(
         conn.close()
         status["running"] = False
         status["done"] = True
+        if status.get("stop_requested"):
+            status["stopped"] = True

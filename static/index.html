@@ -97,6 +97,7 @@
       <input type="text" id="dirInput" placeholder="Enter or browse to a directory" />
       <button class="btn-outline" onclick="openBrowser()">Browse…</button>
       <button class="btn-blue" id="scanBtn" onclick="startScan()">Scan</button>
+      <button class="btn-red" id="stopBtn" onclick="stopScan()" style="display:none">Stop</button>
       <button class="btn-gray" onclick="clearResults()">Clear</button>
       <button class="btn-outline" onclick="clearCache()" title="Remove all cached file hashes from the database">Clear Cache</button>
     </div>
@@ -381,6 +382,7 @@
       if (!dir) { setStatus('Please enter a directory path.', true); return; }
 
       document.getElementById('scanBtn').disabled = true;
+      document.getElementById('stopBtn').style.display = 'inline-block';
       document.getElementById('resultsCard').style.display = 'none';
       document.getElementById('progressWrap').style.display = 'block';
       document.getElementById('progressBar').style.width = '0%';
@@ -407,15 +409,26 @@
       pollTimer = setInterval(pollStatus, 1500);
     }
 
+    async function stopScan() {
+      await fetch('/scan/stop', { method: 'POST' });
+      setStatus('Stop requested — finishing current file…');
+      document.getElementById('stopBtn').disabled = true;
+    }
+
     async function pollStatus() {
       const s = await (await fetch('/scan/status')).json();
       setStatus(`Scanning… ${s.processed || 0} hashed, ${s.skipped || 0} cached`);
       if (s.done) {
         clearInterval(pollTimer);
         document.getElementById('progressBar').style.width = '100%';
-        setStatus(`Done — ${s.processed} files hashed, ${s.skipped} from cache` +
-          (s.errors?.length ? ` (${s.errors.length} errors)` : ''));
         document.getElementById('scanBtn').disabled = false;
+        document.getElementById('stopBtn').style.display = 'none';
+        if (s.stopped) {
+          setStatus(`Scan stopped — ${s.processed.toLocaleString()} files hashed, ${s.skipped.toLocaleString()} from cache.`);
+        } else {
+          setStatus(`Done — ${s.processed.toLocaleString()} files hashed, ${s.skipped.toLocaleString()} from cache` +
+            (s.errors?.length ? ` (${s.errors.length} errors)` : ''));
+        }
         await showDuplicates();
         await loadStats();
       }
